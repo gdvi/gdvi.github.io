@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LoopLab — Optical Visual Generator</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0d12; --panel:#151923; --line:#2b3242; --text:#f4f6fb; --muted:#a7b0c2; --accent:#8cf5d2; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(ellipse at top,#1a2230 0,#0b0d12 58%); color:var(--text); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  header { padding:26px 22px 18px; max-width:1500px; margin:auto; }
+  h1 { margin:0 0 5px; font-size:clamp(25px,4vw,38px); letter-spacing:-1px; }
+  header p { margin:0; color:var(--muted); }
+  main { max-width:1500px; margin:auto; padding:0 22px 28px; display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:18px; }
+  .preview,.panel { background:rgba(21,25,35,.94); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .preview-top { padding:12px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px; border-bottom:1px solid var(--line); color:var(--muted); font-size:13px; }
+  .live-dot { color:var(--accent); }
+  canvas { display:block; width:100%; height:auto; aspect-ratio:16/9; background:#000; }
+  .preview-bottom { display:flex; gap:9px; padding:13px; flex-wrap:wrap; }
+  button,select,input { font:inherit; }
+  button { border:1px solid #3b465b; background:#252d3b; color:var(--text); padding:10px 13px; border-radius:9px; cursor:pointer; font-weight:650; }
+  button:hover { filter:brightness(1.15); }
+  button.primary { background:var(--accent); color:#07140f; border-color:transparent; }
+  button:disabled { opacity:.45; cursor:wait; }
+  .panel { padding:17px; }
+  .panel h2 { margin:0 0 15px; font-size:18px; }
+  .field { margin:0 0 15px; }
+  label { display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; color:#e5e9f2; font-size:13px; }
+  .hint { color:var(--muted); font-size:12px; margin-top:5px; }
+  select,input[type="number"],input[type="text"] { width:100%; color:var(--text); background:#0d1119; border:1px solid #343c4d; border-radius:8px; padding:9px; }
+  input[type="range"] { width:100%; accent-color:var(--accent); }
+  .colors { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  input[type="color"] { width:100%; height:38px; border:1px solid #343c4d; background:#0d1119; border-radius:8px; padding:3px; }
+  .check { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+  .check input { accent-color:var(--accent); }
+  .status { min-height:38px; color:var(--muted); font-size:12px; padding:2px 1px 0; }
+  .small-note { max-width:1500px; margin:0 auto; padding:0 22px 28px; color:var(--muted); font-size:12px; }
+  @media(max-width:900px) { main { grid-template-columns:1fr; } .panel { order:-1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>LoopLab <span style="color:var(--accent)">/</span> Optical Visual Generator</h1>
+  <p>Create customizable moving-pattern visuals with a looping 30 → 0 → 30 center counter. Preview, record, and download locally.</p>
+</header>
+<main>
+  <section class="preview">
+    <div class="preview-top"><span><span class="live-dot">●</span> LIVE PREVIEW</span><span id="resolution">1280 × 720 · 16:9</span></div>
+    <canvas id="canvas" width="1280" height="720" aria-label="Animated optical pattern preview"></canvas>
+    <div class="preview-bottom">
+      <button class="primary" id="playBtn">Pause preview</button>
+      <button id="restartBtn">Restart loop</button>
+      <button id="downloadBtn" class="primary">Record & download video</button>
+    </div>
+  </section>
+  <aside class="panel">
+    <h2>Visual controls</h2>
+    <div class="field"><label for="pattern">Pattern</label>
+      <select id="pattern">
+        <option value="tunnel">Perspective tunnel</option>
+        <option value="spiral">Rotating spiral</option>
+        <option value="rings">Pulsing concentric rings</option>
+        <option value="checker">Warped checkerboard</option>
+        <option value="waves">Flowing wave lines</option>
+        <option value="rays">Rotating radial rays</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Pattern sequence <span id="sequenceCount">3 loops</span></label>
+      <div class="hint">Each row is shown for one full loop, then the next pattern takes over. The sequence repeats after the last row.</div>
+      <div id="sequenceList" style="display:grid;gap:8px;margin-top:9px"></div>
+      <button id="addPatternBtn" type="button" style="width:100%;margin-top:9px">＋ Add pattern to sequence</button>
+    </div>
+    <div class="field"><label>Colors</label><div class="colors">
+      <div><label for="colorA">Color A</label><input id="colorA" type="color" value="#101020"></div>
+      <div><label for="colorB">Color B</label><input id="colorB" type="color" value="#48ffe0"></div>
+    </div><div class="hint">Choose high-contrast or subtle combinations.</div></div>
+    <div class="field"><label for="speed">Motion speed <span id="speedVal">1.0×</span></label><input id="speed" type="range" min="0.2" max="20" step="0.1" value="1"></div>
+    <div class="field"><label for="scale">Pattern density <span id="scaleVal">12</span></label><input id="scale" type="range" min="5" max="30" step="1" value="12"></div>
+    <div class="field"><label for="counterSize">Counter size <span id="counterVal">100 px</span></label><input id="counterSize" type="range" min="48" max="180" step="2" value="100"></div>
+    <div class="field"><label for="counterColor">Counter color</label><input id="counterColor" type="color" value="#ffffff"></div>
+    <div class="field"><label for="loopSeconds">Loop length (seconds)</label><input id="loopSeconds" type="number" min="4" max="120" step="1" value="30"><div class="hint">The full visual cycle and counter repeat at this interval.</div></div>
+    <div class="field"><label for="duration">Video length (minutes)</label><input id="duration" type="number" min="0.1" max="240" step="0.5" value="1"><div class="hint">Exports as WebM. Long recordings use more memory; try a short test first.</div></div>
+    <div class="field"><label for="fps">Frame rate</label><select id="fps"><option value="30">30 FPS · recommended</option><option value="60">60 FPS · smoother / larger file</option><option value="24">24 FPS · smaller file</option></select></div>
+    <div class="field"><label class="check"><input id="showCounter" type="checkbox" checked> Show center countdown</label></div>
+    <div class="field"><label class="check"><input id="showGlow" type="checkbox" checked> Add center glow</label></div>
+    <div class="field"><label class="check"><input id="rgbWobble" type="checkbox"> RGB shift / melting wobble</label></div>
+    <div class="field"><label for="wobbleStrength">Wobble strength <span id="wobbleVal">35%</span></label><input id="wobbleStrength" type="range" min="0" max="100" step="5" value="35"><div class="hint">Adds a wavy, chromatic ghosting effect to the pattern.</div></div>
+    <div class="status" id="status" role="status">Ready. Your visuals render locally in this browser.</div>
+  </aside>
+</main>
+<div class="small-note">Seamless-loop tip: set video length to an exact multiple of the loop length. Recording is done in your browser and downloads as WebM; if you need MP4, convert the file with a video editor. For livestreaming, add this page as a browser source in OBS and stream from OBS—this page does not connect to a platform or handle stream keys.</div>
+<script>
+(() => {
+  const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const controls = ['pattern','colorA','colorB','speed','scale','counterSize','counterColor','loopSeconds','duration','fps','showCounter','showGlow','rgbWobble','wobbleStrength'];
+  let paused = false, recording = false, startedAt = performance.now(), frozenAt = 0, raf = 0;
+  const status = $('status');
+  const patternOptions = [
+    ['tunnel','Perspective tunnel'],['spiral','Rotating spiral'],
+    ['rings','Pulsing concentric rings'],['checker','Warped checkerboard'],
+    ['waves','Flowing wave lines'],['rays','Rotating radial rays']
+  ];
+  const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+  function newEntry(pattern) {
+    return {pattern, a:'#101020', b:'#48ffe0', speed:1, density:12, wobble:false, wobbleStrength:35};
+  }
+  let patternSequence = [newEntry('tunnel'), newEntry('spiral'), newEntry('rings')];
+  function renderSequence() {
+    const list = $('sequenceList');
+    list.innerHTML = '';
+    patternSequence.forEach((entry, index) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'border:1px solid #343c4d;border-radius:9px;padding:8px;background:#0d1119;display:grid;gap:8px';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;gap:5px;align-items:center';
+      const number = document.createElement('span');
+      number.textContent = String(index + 1);
+      number.style.cssText = 'color:#a7b0c2;font-size:12px;text-align:center';
+      const select = document.createElement('select');
+      select.setAttribute('aria-label', `Pattern for loop ${index + 1}`);
+      select.style.cssText = 'min-width:0';
+      patternOptions.forEach(([value,label]) => {
+        const option = document.createElement('option');
+        option.value = value; option.textContent = label;
+        select.appendChild(option);
+      });
+      select.value = entry.pattern;
+      select.addEventListener('change', () => { entry.pattern = select.value; draw((performance.now()-startedAt)/1000); });
+      const up = document.createElement('button');
+      up.type = 'button'; up.textContent = '↑'; up.title = 'Move up'; up.disabled = index === 0;
+      up.style.cssText = 'padding:7px 9px';
+      up.addEventListener('click', () => { [patternSequence[index-1], patternSequence[index]] = [patternSequence[index], patternSequence[index-1]]; renderSequence(); draw((performance.now()-startedAt)/1000); });
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.textContent = '×'; remove.title = 'Remove pattern'; remove.disabled = patternSequence.length === 1;
+      remove.style.cssText = 'padding:7px 10px';
+      remove.addEventListener('click', () => { patternSequence.splice(index,1); renderSequence(); draw((performance.now()-startedAt)/1000); });
+      row.append(number, select, up, remove);
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = 'Customize this pattern';
+      summary.style.cssText = 'cursor:pointer;color:#a7b0c2;font-size:12px;padding:2px';
+      details.appendChild(summary);
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-top:8px';
+      function field(labelText, control, full=false) {
+        const box = document.createElement('div');
+        if (full) box.style.gridColumn = '1 / -1';
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        label.style.cssText = 'display:block;color:#e5e9f2;font-size:12px;margin-bottom:4px';
+        box.append(label, control); grid.appendChild(box);
+      }
+      function colorControl(label, key) {
+        const input = document.createElement('input'); input.type='color'; input.value=entry[key];
+        input.style.cssText='width:100%;height:34px;background:#0b0d12;border:1px solid #343c4d;border-radius:7px';
+        input.addEventListener('input',()=>{entry[key]=input.value;draw((performance.now()-startedAt)/1000);});
+        field(label,input);
+      }
+      function rangeControl(label, key, min, max, step, suffix, full=false) {
+        const boxControl=document.createElement('div');
+        const input=document.createElement('input'); input.type='range'; input.min=min;input.max=max;input.step=step;input.value=entry[key];input.style.width='100%';
+        const value=document.createElement('span');value.textContent=Number(entry[key]).toFixed(key==='speed'?1:0)+suffix;value.style.cssText='float:right;color:#a7b0c2';
+        const lab=document.createElement('label');lab.style.cssText='display:block;color:#e5e9f2;font-size:12px;margin-bottom:4px';lab.append(document.createTextNode(label+' '),value);
+        boxControl.append(lab,input);
+        if(full) boxControl.style.gridColumn='1 / -1';
+        input.addEventListener('input',()=>{entry[key]=+input.value;value.textContent=Number(entry[key]).toFixed(key==='speed'?1:0)+suffix;draw((performance.now()-startedAt)/1000);});
+        grid.appendChild(boxControl);
+      }
+      colorControl('Color A','a'); colorControl('Color B','b');
+      rangeControl('Motion speed','speed',0.2,20,0.1,'×',true);
+      rangeControl('Pattern density','density',5,30,1,'',true);
+      const wobbleLabel=document.createElement('label');wobbleLabel.className='check';wobbleLabel.style.gridColumn='1 / -1';
+      const wobbleInput=document.createElement('input');wobbleInput.type='checkbox';wobbleInput.checked=entry.wobble;
+      wobbleInput.addEventListener('change',()=>{entry.wobble=wobbleInput.checked;draw((performance.now()-startedAt)/1000);});
+      wobbleLabel.append(wobbleInput,document.createTextNode(' RGB shift / melting wobble'));grid.appendChild(wobbleLabel);
+      rangeControl('Wobble strength','wobbleStrength',0,100,5,'%',true);
+      details.appendChild(grid);
+      wrap.append(row,details); list.appendChild(wrap);
+    });
+    $('sequenceCount').textContent = `${patternSequence.length} loop${patternSequence.length === 1 ? '' : 's'}`;
+  }
+  $('addPatternBtn').addEventListener('click', () => {
+    const fallback = patternOptions[patternSequence.length % patternOptions.length][0];
+    const entry = newEntry(fallback);
+    // New entries inherit the current global look as a convenient starting point.
+    entry.a = $('colorA').value; entry.b = $('colorB').value;
+    entry.speed = Number($('speed').value); entry.density = Number($('scale').value);
+    entry.wobble = $('rgbWobble').checked; entry.wobbleStrength = Number($('wobbleStrength').value);
+    patternSequence.push(entry);
+    renderSequence();
+    draw((performance.now()-startedAt)/1000);
+  });
+  const num = (id, fallback) => Number.isFinite(+$ (id).value) ? +$(id).value : fallback;
+  const hexRgb = h => ({r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)});
+  const mix = (a,b,t) => {
+    const A=hexRgb(a), B=hexRgb(b); t=clamp(t,0,1);
+    return `rgb(${Math.round(A.r+(B.r-A.r)*t)},${Math.round(A.g+(B.g-A.g)*t)},${Math.round(A.b+(B.b-A.b)*t)})`;
+  };
+  function settings() {
+    return {pattern:$('pattern').value, a:$('colorA').value, b:$('colorB').value,
+      speed:num('speed',1), density:num('scale',12), size:num('counterSize',100),
+      counter:$('counterColor').value, loop:clamp(num('loopSeconds',30),4,120),
+      show:$('showCounter').checked, glow:$('showGlow').checked, wobble:$('rgbWobble').checked, wobbleStrength:num('wobbleStrength',35)/100};
+  }
+  function draw(t) {
+    const s=settings(), W=canvas.width, H=canvas.height, cx=W/2, cy=H/2;
+    const loopIndex = Math.floor(Math.max(0, t) / s.loop);
+    const p=((Math.max(0, t) % s.loop) / s.loop);
+    // Each sequence entry lasts exactly one loop; animation speed changes motion only.
+    const activeEntry = patternSequence[loopIndex % patternSequence.length];
+    if (activeEntry) {
+      s.pattern = activeEntry.pattern;
+      s.a = activeEntry.a; s.b = activeEntry.b;
+      s.speed = activeEntry.speed; s.density = activeEntry.density;
+      s.wobble = activeEntry.wobble; s.wobbleStrength = activeEntry.wobbleStrength / 100;
+    }
+    // Integer phase cycles keep the animated pattern seamless at each loop boundary.
+    const phase=p*Math.PI*2*s.speed;
+    ctx.fillStyle=s.a; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.translate(cx,cy);
+    if(s.pattern==='rings' || s.pattern==='tunnel') {
+      const maxR=Math.hypot(W,H)*0.58, n=s.density;
+      for(let i=n;i>=0;i--) {
+        let f=((i/n + p)%1);
+        let r=s.pattern==='rings' ? (0.1+f)*maxR : Math.pow(f,1.35)*maxR;
+        ctx.beginPath(); ctx.arc(0,0,Math.max(1,r),0,Math.PI*2);
+        ctx.lineWidth=Math.max(2,maxR/n*.48);
+        ctx.strokeStyle=(i%2===0)?s.b:s.a; ctx.stroke();
+      }
+      if(s.pattern==='tunnel') {
+        ctx.globalAlpha=.28; ctx.lineWidth=2;
+        for(let i=0;i<16;i++){ const a=i*Math.PI/8; ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(a)*W,Math.sin(a)*H);ctx.strokeStyle=s.b;ctx.stroke(); }
+      }
+    } else if(s.pattern==='spiral') {
+      ctx.rotate(phase);
+      for(let arm=0;arm<4;arm++) {
+        ctx.beginPath();
+        for(let i=0;i<1300;i++){ const q=i/1300, a=q*Math.PI*8+arm*Math.PI/2, r=q*Math.hypot(W,H)*.57; const x=Math.cos(a)*r,y=Math.sin(a)*r; if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y); }
+        ctx.strokeStyle=s.b;ctx.lineWidth=Math.max(2,8-s.density*.35);ctx.stroke();
+      }
+    } else if(s.pattern==='checker') {
+      ctx.rotate(phase*.18);
+      const cell=Math.max(18,1000/s.density), reach=Math.hypot(W,H);
+      for(let y=-reach;y<reach;y+=cell) for(let x=-reach;x<reach;x+=cell) {
+        const d=Math.hypot(x,y), shift=Math.sin(d*.008-phase)*cell*.45;
+        ctx.fillStyle=((Math.floor((x+shift)/cell)+Math.floor((y-shift)/cell))%2===0)?s.b:s.a;
+        ctx.fillRect(x+shift,y-shift,cell+1,cell+1);
+      }
+    } else if(s.pattern==='waves') {
+      ctx.lineWidth=Math.max(2,6-s.density*.15);
+      for(let j=-s.density;j<=s.density;j++) {
+        ctx.beginPath();
+        for(let x=-W;x<=W;x+=5) {
+          const y=j*(H/(s.density*1.7))+Math.sin(x*.008+phase*2+j*.35)*H*.12+Math.sin(x*.003-phase)*H*.06;
+          if(x===-W)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }
+        ctx.strokeStyle=(j%2===0)?s.b:s.a;ctx.stroke();
+      }
+    } else if(s.pattern==='rays') {
+      ctx.rotate(phase);
+      const count=s.density*4, r=Math.hypot(W,H);
+      for(let i=0;i<count;i++){ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,r,i*2*Math.PI/count,(i+1)*2*Math.PI/count);ctx.closePath();ctx.fillStyle=i%2===0?s.b:s.a;ctx.fill();}
+    }
+    ctx.restore();
+    // Distort only the background pattern; keep the countdown crisp and readable.
+    if(s.wobble && s.wobbleStrength > 0) {
+      const off = draw.offscreen || (draw.offscreen = document.createElement('canvas'));
+      off.width=W; off.height=H;
+      const ox=off.getContext('2d'); ox.drawImage(canvas,0,0);
+      ctx.clearRect(0,0,W,H);
+      const strength=s.wobbleStrength, strips=64, stripH=Math.ceil(H/strips);
+      for(let y=0;y<H;y+=stripH) {
+        const wave=Math.sin(y*.035 + phase*2.2)*strength*26 + Math.sin(y*.012-phase)*strength*18;
+        const sourceY=y, h=Math.min(stripH,H-y);
+        ctx.drawImage(off,0,sourceY,W,h,wave,y,W,h);
+      }
+      // Colored ghost layers create a lightweight RGB-split / melting look.
+      ctx.save(); ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.16*strength;
+      ctx.drawImage(off, Math.sin(phase*1.4)*strength*12, Math.cos(phase)*strength*5);
+      ctx.globalCompositeOperation='multiply'; ctx.globalAlpha=.10*strength;
+      ctx.fillStyle='#ff245d'; ctx.fillRect(0,0,W,H);
+      ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.10*strength;
+      ctx.fillStyle='#20eaff'; ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+    if(s.glow && s.show) { const g=ctx.createRadialGradient(cx,cy,8,cx,cy,s.size*1.8);g.addColorStop(0,'rgba(0,0,0,.58)');g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(cx-s.size*2,cy-s.size*2,s.size*4,s.size*4); }
+    if(s.show) {
+      // Countdown is tied only to loop length, never to the visual speed slider.
+      // It reads 30 at the start, descends to 0, then resets to 30 on the next loop.
+      const value = Math.max(0, Math.floor(30 * (1 - p)));
+      ctx.save(); ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font=`${s.size}px Impact, "Arial Black", sans-serif`;
+      ctx.lineJoin='round';ctx.lineWidth=Math.max(4,s.size*.075);
+      ctx.strokeStyle='rgba(0,0,0,.85)';ctx.strokeText(String(value),cx,cy);
+      ctx.fillStyle=s.counter;ctx.fillText(String(value),cx,cy);
+      ctx.restore();
+    }
+  }
+  function tick(now) {
+    if(!paused) draw((now-startedAt)/1000);
+    raf=requestAnimationFrame(tick);
+  }
+  function reset() { startedAt=performance.now(); draw(0); }
+  $('playBtn').addEventListener('click',()=>{
+    paused=!paused;
+    if(paused) { frozenAt=performance.now(); $('playBtn').textContent='Resume preview'; }
+    else { startedAt += performance.now()-frozenAt; $('playBtn').textContent='Pause preview'; }
+  });
+  $('restartBtn').addEventListener('click',reset);
+  $('pattern').addEventListener('change', () => {
+    patternSequence[0].pattern = $('pattern').value;
+    renderSequence();
+    draw((performance.now()-startedAt)/1000);
+  });
+  $('speed').addEventListener('input',()=> $('speedVal').textContent=num('speed',1).toFixed(1)+'×');
+  $('scale').addEventListener('input',()=> $('scaleVal').textContent=$('scale').value);
+  $('counterSize').addEventListener('input',()=> $('counterVal').textContent=$('counterSize').value+' px');
+  $('wobbleStrength').addEventListener('input',()=> $('wobbleVal').textContent=$('wobbleStrength').value+'%');
+  controls.forEach(id=>$(id).addEventListener('input',()=>draw((performance.now()-startedAt)/1000)));
+  $('downloadBtn').addEventListener('click', async()=>{
+    if(recording) return;
+    if(!canvas.captureStream || !window.MediaRecorder) {
+      status.textContent='Video recording is not supported in this browser. Try a recent desktop version of Chrome or Edge.';
+      return;
+    }
+    const minutes=clamp(num('duration',1),.1,240), seconds=minutes*60;
+    const loop=clamp(num('loopSeconds',30),4,120), fps=clamp(num('fps',30),24,60);
+    const cycles=seconds/loop;
+    if(Math.abs(cycles-Math.round(cycles))>0.0001) {
+      const ok=confirm('This duration is not an exact multiple of the loop length, so the first and last frames may not match for a seamless repeat. Record anyway?');
+      if(!ok) return;
+    }
+    if(seconds>600 && !confirm('This is a long browser recording and may use significant memory. Continue?')) return;
+    let stream, recorder, chunks=[];
+    try {
+      recording=true; $('downloadBtn').disabled=true; $('downloadBtn').textContent='Recording…';
+      status.textContent=`Recording ${minutes} minute(s) at ${fps} FPS. Keep this tab open.`;
+      // Record a dedicated canvas stream; draw with a deterministic timebase.
+      stream=canvas.captureStream(fps);
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
+                   MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
+      recorder=new MediaRecorder(stream,{mimeType:mime, videoBitsPerSecond:8000000});
+      recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+      const done=new Promise((resolve,reject)=>{recorder.onstop=resolve;recorder.onerror=()=>reject(new Error('Recording failed'));});
+      let recStart=performance.now(), recRaf;
+      function recordFrame(now) {
+        const elapsed=(now-recStart)/1000;
+        draw(elapsed);
+        status.textContent=`Recording… ${Math.min(100,Math.floor(elapsed/seconds*100))}%`;
+        if(elapsed<seconds) recRaf=requestAnimationFrame(recordFrame);
+        else recorder.stop();
+      }
+      recorder.start(1000);
+      recRaf=requestAnimationFrame(recordFrame);
+      await done;
+      cancelAnimationFrame(recRaf);
+      const blob=new Blob(chunks,{type:'video/webm'});
+      const url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url; a.download=`looplab-sequence-${Math.round(seconds)}s.webm`;
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      status.textContent=`Done — ${(blob.size/1024/1024).toFixed(1)} MB WebM downloaded.`;
+    } catch(err) {
+      status.textContent='Could not complete recording: '+err.message;
+    } finally {
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      recording=false; $('downloadBtn').disabled=false; $('downloadBtn').textContent='Record & download video';
+      draw((performance.now()-startedAt)/1000);
+    }
+  });
+  draw(0); raf=requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
